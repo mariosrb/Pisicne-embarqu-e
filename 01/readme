@@ -1,0 +1,140 @@
+3 timer differents:
+1 = "timer0" -> de 0 a 255 (car coder sur 8 bits)
+1 = "timer1" -> de 0 a 65535 (car coder sur 16 bits)
+1 = "timer2" -> de 0 a 255 (car coder sur 8 bits)
+
+ils avancent d'un en un, une fois au bout, ils repassent a 0 puis recompte.
+!! a chaque retour a 0, un signal est envoyer !!
+
+valeur des timers stocker -> registre
+timer0 -> TCNT0
+timer1 -> TCNT1
+timer2 -> TCNT2
+
+le timer compte a la frequence du MCU, ici 16MHz, si le compteur comptait a 16MHz, il atteindrait vite sa limite
+!! le prescaler divise la frequence pour ralentir le rythme des impulsions qui arrivent au timer
+
+ex prescaler possibles:
+- /1 -> 16MHz
+- /8 -> 2MHz
+- /64 -> 250kHz
+- /256 -> 62.5kHz
+- /1024 -> 15.6kHz
+adapte la vitesse de comptage
+
+il existe 3 prediviseur secondairespermettant de rediviser la frequence:
+timer0 -> 1, 8, 64, 256, 1024
+timer1 -> 1, 8, 64, 256, 1024
+timer2 -> 1, 8, 32, 64, 128, 256, 1024
+
+---------------------------------------------------------------------------------------
+|**Élément**       |**Rôle**                                                          |
+| ---------------- | ---------------------------------------------------------------- |
+| **Timer**        |*Compteur matériel qui s’incrémente avec les impulsions d’horloge*|
+|------------------|------------------------------------------------------------------|
+| **Horloge MCU**  |*Donne la fréquence de base (ex : 16 MHz)*                        |
+|------------------|------------------------------------------------------------------|
+| **Prescaler**    |*Divise la fréquence pour ralentir le comptage*                   |
+|------------------|------------------------------------------------------------------|
+| **Indépendance** |*Le timer tourne même si ton programme fait autre chose*          |
+|------------------|------------------------------------------------------------------|
+| **Utilité**      |*Gérer des actions temporelles sans bloquer le CPU*               |
+---------------------------------------------------------------------------------------
+
+pour changer la valeur du prescaler, il faut changer 1 ou plusiuers bits du registre CLKPR
+
+le prescaler ralentit « tout » le microcontrôleur, les prédiviseurs, ne ralentissent que les timers auxquels ils sont associés
+
+==========================
+registre de chaque timer:|
+==========================
+
+timer0 -> TCCR0B
+timer0 -> TCCR1B
+timer0 -> TCCR2B
+
+Exemple #1 : pour mettre CS10 à 1 dans le registre TCCR1B :
+    Solution 1 : bitSet(TCCR1B, CS10);
+    Solution 2 : TCCR1B |= (1<<CS10)
+Exemple #2 : pour mettre CS12 à 0 dans le registre TCCR1B :
+    Solution 1 : bitClear(TCCR1B, CS12);
+    Solution 2 : TCCR1B &= ~(1<<CS12);
+
+=======================
+registre de controle :|
+=======================
+timer0 -> TCCR0A et TCCR0B
+timer1 -> TCCR1A, TCCR1B et TCCR1C
+timer2 -> TCCR2A et TCCR2B
+
+| *Registre* |*Bits 7*|*Bits 6*|*Bits 5*|*Bits 4*|*Bits 3*|*Bits 2*|*Bits 1*|*Bits 0*|
+| ---------- | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
+| **TCCR0A** |*COM0A1*|*COM0A0*|*COM0B1*|*COM0B0*| –      | –      |*WGM01* |*WGM00* |
+| **TCCR0B** |*FOC0A* |*FOC0B* | –      | –      |*WGM02* |*CS02*  |*CS01*  | *CS00* |
+| **TCCR1A** |*COM1A1*|*COM1A0*|*COM1B1*|*COM1B0*| –      | –      |*WGM11* |*WGM10* |
+| **TCCR1B** |*ICNC1* |*ICES1* | –      |*WGM13* |*WGM12* |*CS12*  |*CS11*  |*CS10*  |
+| **TCCR1C** |*FOC1A* |*FOC1B* | –      | –      | –      | –      | –      | –      |
+| **TCCR2A** |*COM2A1*|*COM2A0*|*COM2B1*|*COM2B0*| –      | –      |*WGM21* |*WGM20* |
+| **TCCR2B** |*FOC2A* |*FOC2B* | –      | –      |*WGM22* |*CS22*  |*CS21*  |*CS20*  |
+
+WGMxx -> definit le mode du timer
+|
+--> comptage normal (le timer compte jusqua atteindre sa valeur max)
+|
+--> comptage "CTC" (le timer va compter jusqu’à déclencher une alerte , lorsque sa valeur courant sera égale à une valeur de référence qu’on aura préalablement définie (spécifiée dans un registre dit « de comparaison »). À ce moment-là, une interruption pourrait être générée, si souhaité. Et dans tous les cas, le timer, quant à lui, aura repris son comptage depuis zéro !)
+
+CSxx -> choisit la source de l'orloge et le prescal
+
+COMxx -> controle ce qui se passe sur la broche OCnA / OCnB quand le timer atteint une valeur de comparaison
+
+FOCxx -> force manuellement un evenement de comparaison
+
+ICNC1 / ICES1 ->  utiliser seulement par le timer1 pour mesurer un signal externe
+
+========================================================================
+registre drapeaux pour allerter d'un evenement particulier sur un timer|
+========================================================================
+
+timer0 -> TIFR0
+timer1 -> TIFR1
+timer2 -> TIFR2
+
+| *Registre*|*Bits 7*|*Bits 6*|*Bits 5*|*Bits 4*|*Bits 3*|*Bits 2*|*Bits 1*|*Bits 0*|
+| ----------| ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
+| **TIFR0** |        |        |        |        | –      |*OCF0B* |*OCF0A* | *TOV0* |
+| **TIFR1** |        |        | *ICF1* | –      |        |*OCF1B* |*OCF1A* | *TOV1* |
+| **TIFR2** |        |        |        |        | –      |*OCF2B* |*OCF2A* | *TOV2* |
+
+alerte sur :
+- la valeur d'un timer a atteint son max -> TOVx passe a "1" lors d'un overflow
+- la valeur d'un timer est egale a une autre stocker dans un registre de comparaison -> OCFxx indique s'il y a egalite
+
+=========================
+registres d'interuption |
+=========================
+
+| *Registre*|*Bits 7*|*Bits 6*|*Bits 5*|*Bits 4*|*Bits 3*|*Bits 2*|*Bits 1*|*Bits 0*|
+| ----------| ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
+|**TIMSK0** |        |        |        |        | –      |*OCIE0B*|*OCIE0A*|*TOIE0* |
+|**TIMSK1** |        |        |*ICIE1* | –      |        |*OCIE1B*|*OCIE1A*|*TOIE1* |
+|**TIMSK2** |        |        |        |        | –      |*OCIE2B*|*OCIE2A*|*TOIE2* |
+
+si bits = 1, definissent dans quelle condition une interuption est declanchee
+
+TOVx -> interruption lever quand timerx atteint sa val max
+
+OCFxA -> interruption lever quand timerx atteint une val egale à celle qu’on aura renseigné, et stocké dans le registre OCRxA
+
+OCFxB -> interruption lever quand timerx atteint une val egale à celle qu’on aura renseigné, et stocké dans le registre OCRxB
+
+=========================
+registre de comparaison |
+=========================
+
+stock des valeurs pour faire des tests d'egalite avec la valeur courant des timer
+
+timer0 -> OCR0A et OCR0B -> masque d'interuption TIMSK0
+timer1 -> OCR1A et OCR1B -> masque d'interuption TIMSK1
+timer -> OCR2A et OCR2B -> masque d'interuption TIMSK2
+
+??? signaux PWM ???
